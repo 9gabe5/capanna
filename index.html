@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OMV Roma Prenestina — Calcolo Manovre</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0f1117; color: #e2e8f0; font-family: 'Courier New', monospace; min-height: 100vh; }
+  header { border-bottom: 2px solid #1e3a5f; padding: 20px 32px; display: flex; align-items: center; gap: 16px; }
+  .logo { width: 40px; height: 40px; background: #1e3a5f; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+  h1 { font-size: 18px; font-weight: 700; letter-spacing: 2px; color: #60a5fa; }
+  .subtitle { font-size: 11px; color: #475569; letter-spacing: 3px; }
+  main { max-width: 960px; margin: 0 auto; padding: 32px 24px; }
+  .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .upload-card { border: 2px dashed #334155; border-radius: 12px; padding: 24px; cursor: pointer; background: #131825; transition: all 0.2s; }
+  .upload-card.loaded { border-color: #1e40af; background: #0f2040; }
+  .upload-card input { display: none; }
+  .upload-icon { font-size: 28px; margin-bottom: 8px; }
+  .upload-label { font-size: 12px; letter-spacing: 2px; color: #60a5fa; font-weight: 700; }
+  .upload-desc { font-size: 11px; color: #475569; margin-top: 4px; }
+  .upload-file { margin-top: 12px; font-size: 11px; color: #22c55e; background: #052e16; padding: 4px 10px; border-radius: 4px; display: inline-block; }
+  .upload-hint { margin-top: 12px; font-size: 11px; color: #475569; }
+  .apikey-row { margin-bottom: 24px; }
+  .apikey-row label { font-size: 11px; color: #475569; letter-spacing: 2px; display: block; margin-bottom: 6px; }
+  .apikey-row input { width: 100%; padding: 10px 14px; background: #131825; border: 1px solid #334155; border-radius: 8px; color: #e2e8f0; font-family: 'Courier New', monospace; font-size: 12px; }
+  .apikey-row input:focus { outline: none; border-color: #1e40af; }
+  .preview { background: #131825; border: 1px solid #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 24px; font-size: 12px; }
+  .preview-title { color: #60a5fa; font-weight: 700; letter-spacing: 2px; margin-bottom: 12px; }
+  .preview-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .preview-col-title { color: #475569; margin-bottom: 4px; }
+  .preview-row { color: #94a3b8; margin-bottom: 2px; }
+  .btn { width: 100%; padding: 16px; background: #1d4ed8; border: none; border-radius: 12px; color: #fff; font-size: 14px; font-weight: 700; letter-spacing: 3px; cursor: pointer; margin-bottom: 24px; font-family: 'Courier New', monospace; }
+  .btn:disabled { background: #1e293b; color: #475569; cursor: not-allowed; }
+  .error { background: #2d0a0a; border: 1px solid #7f1d1d; border-radius: 8px; padding: 16px; color: #fca5a5; margin-bottom: 24px; font-size: 11px; white-space: pre-wrap; word-break: break-all; }
+  .riepilogo { background: #0f2040; border: 1px solid #1e3a5f; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .riepilogo-title { font-size: 11px; color: #60a5fa; letter-spacing: 2px; margin-bottom: 8px; }
+  .riepilogo-text { font-size: 13px; color: #e2e8f0; line-height: 1.6; }
+  .avvertenze { background: #1c1000; border: 1px solid #78350f; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .avvertenze-title { font-size: 11px; color: #f59e0b; letter-spacing: 2px; margin-bottom: 8px; }
+  .avvertenza { font-size: 12px; color: #fcd34d; margin-bottom: 4px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .tab { padding: 8px 20px; border: none; border-radius: 8px; font-size: 11px; letter-spacing: 2px; cursor: pointer; font-family: 'Courier New', monospace; background: #1e293b; color: #475569; }
+  .tab.active { background: #1d4ed8; color: #fff; }
+  .sequenza { display: flex; flex-direction: column; gap: 8px; }
+  .step { background: #131825; border: 1px solid #1e293b; border-radius: 10px; padding: 14px 16px; display: grid; grid-template-columns: 40px 90px 1fr 120px; gap: 12px; align-items: start; }
+  .step-num { font-size: 18px; color: #334155; font-weight: 700; }
+  .step-tipo { border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-align: center; }
+  .step-vettura { font-size: 13px; color: #60a5fa; font-weight: 700; }
+  .step-note { font-size: 11px; color: #475569; margin-top: 4px; line-height: 1.5; }
+  .step-pos { font-size: 12px; text-align: right; }
+  .stato-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .binario-card { background: #131825; border: 1px solid #1e293b; border-radius: 10px; padding: 16px; }
+  .binario-title { font-size: 11px; color: #475569; letter-spacing: 2px; margin-bottom: 10px; }
+  .posizioni { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 8px; }
+  .pos-cell { border-radius: 6px; padding: 6px 4px; text-align: center; }
+  .pos-cell.vuota { background: #0d1117; border: 1px solid #1e293b; }
+  .pos-cell.piena { background: #0f2040; border: 1px solid #1e3a5f; }
+  .pos-label { font-size: 9px; color: #334155; }
+  .pos-val { font-size: 10px; margin-top: 2px; word-break: break-all; }
+  .fuori-section { border-top: 1px solid #1e293b; padding-top: 8px; }
+  .fuori-title { font-size: 9px; color: #475569; margin-bottom: 4px; }
+  .fuori-val { font-size: 10px; color: #f59e0b; }
+  .green { color: #22c55e; }
+  .blue { color: #60a5fa; }
+  .amber { color: #f59e0b; }
+  @media (max-width: 600px) {
+    .upload-grid { grid-template-columns: 1fr; }
+    .preview-grid { grid-template-columns: 1fr; }
+    .step { grid-template-columns: 30px 70px 1fr; }
+    .step-pos { display: none; }
+    .stato-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🚃</div>
+  <div>
+    <h1>OMV ROMA PRENESTINA</h1>
+    <div class="subtitle">SISTEMA DI CALCOLO MANOVRE · FerroViaLibera</div>
+  </div>
+</header>
+
+<main>
+  <!-- API Key -->
+  <div class="apikey-row">
+    <label>ANTHROPIC API KEY</label>
+    <input type="password" id="apikey" placeholder="sk-ant-..." autocomplete="off">
+  </div>
+
+  <!-- Upload -->
+  <div class="upload-grid">
+    <label class="upload-card" id="card-piazz" ondragover="event.preventDefault()" ondrop="handleDrop(event,'piazz')">
+      <input type="file" accept=".xlsx" onchange="handleFile(this,'piazz')">
+      <div class="upload-icon">📋</div>
+      <div class="upload-label">POSIZIONAMENTO</div>
+      <div class="upload-desc">Foglio INT + EST</div>
+      <div id="name-piazz" class="upload-hint">Trascina o clicca per caricare</div>
+    </label>
+    <label class="upload-card" id="card-manovr" ondragover="event.preventDefault()" ondrop="handleDrop(event,'manovr')">
+      <input type="file" accept=".xlsx" onchange="handleFile(this,'manovr')">
+      <div class="upload-icon">📝</div>
+      <div class="upload-label">PROGRAMMA MANOVRE</div>
+      <div class="upload-desc">Foglio Uscite / Ingressi / Spostamenti</div>
+      <div id="name-manovr" class="upload-hint">Trascina o clicca per caricare</div>
+    </label>
+  </div>
+
+  <!-- Preview -->
+  <div class="preview" id="preview" style="display:none">
+    <div class="preview-title">DATI CARICATI</div>
+    <div class="preview-grid">
+      <div><div class="preview-col-title">INTERNO</div><div id="prev-interno"></div></div>
+      <div><div class="preview-col-title">ESTERNO</div><div id="prev-esterno"></div></div>
+      <div>
+        <div class="preview-col-title">OPERAZIONI</div>
+        <div id="prev-uscite" class="green"></div>
+        <div id="prev-ingressi" class="blue"></div>
+        <div id="prev-manovre" class="amber"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottone -->
+  <button class="btn" id="btn-calcola" onclick="elabora()" disabled>▶  CALCOLA SEQUENZA MANOVRE</button>
+
+  <!-- Errore -->
+  <div class="error" id="error-box" style="display:none"></div>
+
+  <!-- Risultato -->
+  <div id="result-box" style="display:none">
+    <div class="riepilogo">
+      <div class="riepilogo-title">RIEPILOGO OPERATIVO</div>
+      <div class="riepilogo-text" id="res-riepilogo"></div>
+    </div>
+    <div class="avvertenze" id="res-avvertenze-box" style="display:none">
+      <div class="avvertenze-title">⚠ AVVERTENZE</div>
+      <div id="res-avvertenze"></div>
+    </div>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('sequenza')">SEQUENZA MANOVRE</button>
+      <button class="tab" onclick="switchTab('stato')">STATO FINALE</button>
+    </div>
+    <div id="tab-sequenza"><div class="sequenza" id="res-sequenza"></div></div>
+    <div id="tab-stato" style="display:none"><div class="stato-grid" id="res-stato"></div></div>
+  </div>
+</main>
+
+<script>
+const SYSTEM_PROMPT = `Sei il cervello operativo per le manovre del deposito OMV di Roma Prenestina.
+
+STRUTTURA DATI:
+- interno: binari 3-10, posizioni 1-4. Pos 1=fondo capannone, pos 4=uscita.
+- esterno: vetture fuori dal capannone per binario.
+- Per binari 1 e 2: la chiave "dentro" indica vettura interna.
+
+REGOLE:
+1. Ordine prelievo: FUORI → 4ª → 3ª → 2ª → 1ª posizione
+2. Sgancio sempre dalla coda
+3. Locomotiva lato basso, coda lato alto
+4. Non superare capienza: binari 9/10 max 1 fuori, binari 7/8 max 3 fuori
+5. NON posizionare vetture a binario 10-4 e 9-3
+
+OPERAZIONI:
+- uscite: campo "da" = posizione attuale, vettura esce dall'OMV
+- ingressi: campo "a" = destinazione, vettura entra nell'OMV
+- manovre: campo "da" → campo "a", spostamento interno
+
+Rispondi SOLO con JSON valido, inizia con {
+{
+  "riepilogo": "...",
+  "avvertenze": ["..."],
+  "sequenza": [{"step":1,"tipo":"USCITA|INGRESSO|MANOVRA|PRELIEVO|SGANCIO","vettura":"...","da":"...","a":"...","note":"..."}],
+  "stato_finale": {"binario_3":{"pos1":null,"pos2":null,"pos3":null,"pos4":null,"fuori":[]},"binario_4":{"pos1":null,"pos2":null,"pos3":null,"pos4":null,"fuori":[]},"binario_5":{"pos1":null,"pos2":null,"pos3":null,"pos4":null,"fuori":[]},"binario_6":{"pos1":null,"pos2":null,"pos3":null,"pos4":null,"fuori":[]},"binario_7":{"pos1":null,"pos2":null,"pos3":null,"pos4":null,"fuori":[]},"binario_8":{"pos1":null,"pos2":null,"pos3":null,"pos4":null,"fuori":[]},"binario_9":{"pos1":null,"pos2":null,"pos3":null,"pos4":null,"fuori":[]},"binario_10":{"pos1":null,"pos2":null,"pos3":null,"pos4":null,"fuori":[]}}
+}`;
+
+let piazzData = null;
+let manovrData = null;
+
+function parseXlsx(ab) {
+  const wb = XLSX.read(ab, { type: 'array' });
+  const res = {};
+  for (const name of wb.SheetNames) {
+    res[name] = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: null });
+  }
+  return res;
+}
+
+function parsePiazzamento(sheets) {
+  const interno = {};
+  const esterno = {};
+  const int = sheets['INT'] || [];
+  let currentBin = null;
+  for (const row of int) {
+    const col0 = row[0], col1 = row[1], vettura = row[3], attivita = row[2];
+    if (col0 && !isNaN(parseInt(col0)) && parseInt(col0) >= 3 && parseInt(col0) <= 10) {
+      currentBin = parseInt(col0);
+      if (!interno[currentBin]) interno[currentBin] = {1:null,2:null,3:null,4:null};
+    }
+    if (currentBin && col1 && !isNaN(parseInt(col1))) {
+      const pos = parseInt(col1);
+      if (vettura && String(vettura).trim()) {
+        interno[currentBin][pos] = { vettura: String(vettura).trim(), attivita: attivita || null };
+      }
+    }
+  }
+  const est = sheets['EST'] || [];
+  for (let i = 1; i < est.length; i++) {
+    const row = est[i];
+    const binNum = parseInt(row[0]);
+    if (!binNum || isNaN(binNum)) continue;
+    esterno[binNum] = [];
+    if (binNum === 1 || binNum === 2) {
+      if (row[1] && String(row[1]).trim()) {
+        if (!interno[binNum]) interno[binNum] = {1:null,2:null,3:null,4:null};
+        const v = String(row[1]).trim();
+        for (let p=1;p<=4;p++) { if (!interno[binNum][p]) { interno[binNum][p]={vettura:v,attivita:null}; break; } }
+      }
+      for (let c=2;c<row.length;c++) if (row[c]&&String(row[c]).trim()) esterno[binNum].push(String(row[c]).trim());
+    } else {
+      for (let c=1;c<row.length;c++) if (row[c]&&String(row[c]).trim()) esterno[binNum].push(String(row[c]).trim());
+    }
+  }
+  return { interno, esterno };
+}
+
+function parseManovre(sheets) {
+  const foglio = sheets['Foglio1'] || [];
+  const uscite = [], manovre = [], ingressi = [];
+  const c = v => { if (v===null||v===undefined) return ''; const s=String(v).trim(); return (s==='nan'||s==='NaT')?'':s; };
+  const isM = v => /^\d{7}-\d$/.test(c(v));
+  for (let i=25;i<=36;i++) { const row=foglio[i]; if(!row)continue; if(isM(row[2])) uscite.push({vettura:c(row[2]),note:c(row[3]),da:c(row[4])}); }
+  for (let i=38;i<=50;i++) { const row=foglio[i]; if(!row)continue; if(isM(row[2])) manovre.push({vettura:c(row[2]),note:c(row[3]),da:c(row[4]),a:c(row[5])}); }
+  for (let i=52;i<=61;i++) { const row=foglio[i]; if(!row)continue; if(isM(row[2])) ingressi.push({vettura:c(row[2]),note:c(row[3]),a:c(row[4])}); }
+  return { uscite, ingressi, manovre };
+}
+
+function handleDrop(e, type) {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file) processFile(file, type);
+}
+
+function handleFile(input, type) {
+  if (input.files[0]) processFile(input.files[0], type);
+}
+
+function processFile(file, type) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const sheets = parseXlsx(e.target.result);
+    if (type === 'piazz') {
+      piazzData = parsePiazzamento(sheets);
+      document.getElementById('card-piazz').classList.add('loaded');
+      document.getElementById('name-piazz').innerHTML = `<span class="upload-file">✓ ${file.name}</span>`;
+    } else {
+      manovrData = parseManovre(sheets);
+      document.getElementById('card-manovr').classList.add('loaded');
+      document.getElementById('name-manovr').innerHTML = `<span class="upload-file">✓ ${file.name}</span>`;
+    }
+    updatePreview();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function updatePreview() {
+  if (!piazzData || !manovrData) return;
+  document.getElementById('preview').style.display = 'block';
+  const interno = piazzData.interno;
+  let hi = '';
+  for (const [bin,pos] of Object.entries(interno)) {
+    const vett = Object.values(pos).filter(Boolean);
+    if (vett.length) hi += `<div class="preview-row">Bin ${bin}: ${vett.map(v=>v.vettura).join(', ')}</div>`;
+  }
+  document.getElementById('prev-interno').innerHTML = hi;
+  let he = '';
+  for (const [bin,vett] of Object.entries(piazzData.esterno)) {
+    if (vett.length) he += `<div class="preview-row">Bin ${bin}: ${vett.length} fuori</div>`;
+  }
+  document.getElementById('prev-esterno').innerHTML = he;
+  document.getElementById('prev-uscite').textContent = `↗ ${manovrData.uscite.length} uscite`;
+  document.getElementById('prev-ingressi').textContent = `↙ ${manovrData.ingressi.length} ingressi`;
+  document.getElementById('prev-manovre').textContent = `⇄ ${manovrData.manovre.length} spostamenti`;
+  document.getElementById('btn-calcola').disabled = false;
+}
+
+async function elabora() {
+  const apikey = document.getElementById('apikey').value.trim();
+  if (!apikey) { showError('Inserisci la API key di Anthropic.'); return; }
+  document.getElementById('btn-calcola').disabled = true;
+  document.getElementById('btn-calcola').textContent = '⟳  ELABORAZIONE IN CORSO...';
+  document.getElementById('error-box').style.display = 'none';
+  document.getElementById('result-box').style.display = 'none';
+  try {
+    const payload = { piazzamento: piazzData, manovre: manovrData };
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apikey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4000,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: `Dati:\n${JSON.stringify(payload)}\n\nElabora la sequenza. Rispondi SOLO con JSON valido.` }]
+      })
+    });
+    const data = await res.json();
+    if (data.error) { showError('Errore API: ' + data.error.message); return; }
+    const text = data.content?.map(b=>b.text||'').join('') || '';
+    const i1 = text.indexOf('{'), i2 = text.lastIndexOf('}');
+    if (i1 === -1) { showError('Risposta non JSON:\n' + text.slice(0,400)); return; }
+    const result = JSON.parse(text.slice(i1, i2+1));
+    renderResult(result);
+  } catch(err) {
+    showError('Errore: ' + err.message);
+  } finally {
+    document.getElementById('btn-calcola').disabled = false;
+    document.getElementById('btn-calcola').textContent = '▶  CALCOLA SEQUENZA MANOVRE';
+  }
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-box');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+const TIPO_COLORS = {
+  USCITA:   {bg:'#16a34a',color:'#fff'},
+  INGRESSO: {bg:'#2563eb',color:'#fff'},
+  MANOVRA:  {bg:'#d97706',color:'#fff'},
+  PRELIEVO: {bg:'#7c3aed',color:'#fff'},
+  SGANCIO:  {bg:'#dc2626',color:'#fff'},
+};
+const TIPO_ICONS = {USCITA:'↗',INGRESSO:'↙',MANOVRA:'⇄',PRELIEVO:'⬆',SGANCIO:'⬇'};
+
+function renderResult(r) {
+  document.getElementById('res-riepilogo').textContent = r.riepilogo || '';
+  if (r.avvertenze?.length) {
+    document.getElementById('res-avvertenze-box').style.display = 'block';
+    document.getElementById('res-avvertenze').innerHTML = r.avvertenze.map(a=>`<div class="avvertenza">• ${a}</div>`).join('');
+  }
+  // Sequenza
+  const seqEl = document.getElementById('res-sequenza');
+  seqEl.innerHTML = (r.sequenza||[]).map(s => {
+    const col = TIPO_COLORS[s.tipo] || {bg:'#334155',color:'#fff'};
+    const icon = TIPO_ICONS[s.tipo] || '•';
+    return `<div class="step">
+      <div class="step-num">#${s.step}</div>
+      <div class="step-tipo" style="background:${col.bg};color:${col.color}">${icon} ${s.tipo}</div>
+      <div><div class="step-vettura">${s.vettura||''}</div><div class="step-note">${s.note||''}</div></div>
+      <div class="step-pos"><span style="color:#ef4444">${s.da||'—'}</span> <span style="color:#475569">→</span> <span style="color:#22c55e">${s.a||'—'}</span></div>
+    </div>`;
+  }).join('');
+  // Stato finale
+  const statoEl = document.getElementById('res-stato');
+  statoEl.innerHTML = Object.entries(r.stato_finale||{}).map(([k,d]) => {
+    const num = k.replace('binario_','');
+    const posizioni = [d.pos1,d.pos2,d.pos3,d.pos4];
+    const fuori = d.fuori||[];
+    const posHtml = posizioni.map((v,i)=>`<div class="pos-cell ${v?'piena':'vuota'}"><div class="pos-label">POS ${i+1}</div><div class="pos-val" style="color:${v?'#60a5fa':'#1e293b'}">${v||'—'}</div></div>`).join('');
+    const fuoriHtml = fuori.length ? `<div class="fuori-section"><div class="fuori-title">FUORI</div>${fuori.map(v=>`<div class="fuori-val">${v}</div>`).join('')}</div>` : '';
+    return `<div class="binario-card"><div class="binario-title">BINARIO ${num}</div><div class="posizioni">${posHtml}</div>${fuoriHtml}</div>`;
+  }).join('');
+  document.getElementById('result-box').style.display = 'block';
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-sequenza').style.display = tab==='sequenza'?'block':'none';
+  document.getElementById('tab-stato').style.display = tab==='stato'?'block':'none';
+  event.target.classList.add('active');
+}
+</script>
+</body>
+</html>
